@@ -1,5 +1,6 @@
 use std::{
   fs,
+  io::BufWriter,
   path::{Path, PathBuf},
   process::Command,
   sync::Arc,
@@ -7,6 +8,7 @@ use std::{
 };
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use image::{codecs::jpeg::JpegEncoder, imageops::FilterType, ImageReader};
 
 use crate::{
   cache::{cache_key, ensure_cache_dir, is_cache_valid, write_sidecar, CacheFingerprint},
@@ -241,6 +243,10 @@ fn build_playable_video(
 
 fn generate_photo_thumbnail(source: &Path, extension: &str, output: &Path) -> AppResult<()> {
   let ext = extension.to_ascii_lowercase();
+  if ext == "jpg" || ext == "jpeg" || ext == "png" {
+    return native_photo_thumbnail(source, output);
+  }
+
   if ext == "heic" || ext == "heif" {
     if let Ok(()) = ffmpeg_photo_thumbnail(source, output) {
       return Ok(());
@@ -254,6 +260,29 @@ fn generate_photo_thumbnail(source: &Path, extension: &str, output: &Path) -> Ap
   }
 
   ffmpeg_photo_thumbnail(source, output)
+}
+
+fn native_photo_thumbnail(source: &Path, output: &Path) -> AppResult<()> {
+  let reader = ImageReader::open(source)
+    .map_err(|err| AppError::ExternalCommand(format!("failed to open image: {err}")))?;
+  let reader = reader
+    .with_guessed_format()
+    .map_err(|err| AppError::ExternalCommand(format!("failed to detect image format: {err}")))?;
+  let image = reader
+    .decode()
+    .map_err(|err| AppError::ExternalCommand(format!("failed to decode image: {err}")))?;
+
+  let thumbnail = image.resize(400, 400, FilterType::Triangle).to_rgb8();
+
+  let file = fs::File::create(output)
+    .map_err(|err| AppError::ExternalCommand(format!("failed to create thumbnail file: {err}")))?;
+  let writer = BufWriter::new(file);
+  let mut encoder = JpegEncoder::new_with_quality(writer, 82);
+  encoder
+    .encode_image(&thumbnail)
+    .map_err(|err| AppError::ExternalCommand(format!("failed to encode jpeg thumbnail: {err}")))?;
+
+  Ok(())
 }
 
 fn generate_video_thumbnail(source: &Path, output: &Path) -> AppResult<()> {

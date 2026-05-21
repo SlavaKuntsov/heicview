@@ -12,7 +12,7 @@ import {
 import { applyFilters, mergeLivePhotoItems, sortByMtimeDesc, type FilterType } from "./lib/media-utils";
 import type { MediaEntry } from "./lib/types";
 
-const MAX_THUMB_JOBS = 6;
+const MAX_THUMB_JOBS = 8;
 const PRELOAD_RADIUS = 3;
 const MAX_PRELOAD_JOBS = 3;
 
@@ -30,6 +30,7 @@ export function App() {
 
   const thumbQueueRef = useRef<MediaEntry[]>([]);
   const queuedThumbIdsRef = useRef<Set<string>>(new Set());
+  const loadedThumbIdsRef = useRef<Set<string>>(new Set());
   const activeThumbJobsRef = useRef(0);
   const warmedPreloadKeysRef = useRef<Set<string>>(new Set());
 
@@ -144,6 +145,7 @@ export function App() {
 
       void generateThumbnail(item)
         .then((response) => {
+          loadedThumbIdsRef.current.add(item.id);
           setThumbnailUrls((previous) => {
             const next = new Map(previous);
             next.set(item.id, filePathToUrl(response.cachePath));
@@ -166,22 +168,33 @@ export function App() {
     }
   }, []);
 
-  const queueThumbnail = useCallback(
-    (item: MediaEntry) => {
-      if (thumbnailUrls.has(item.id) || queuedThumbIdsRef.current.has(item.id)) {
+  const queueThumbnails = useCallback(
+    (items: MediaEntry[]) => {
+      const toQueue: MediaEntry[] = [];
+
+      for (const item of items) {
+        if (loadedThumbIdsRef.current.has(item.id) || queuedThumbIdsRef.current.has(item.id)) {
+          continue;
+        }
+        queuedThumbIdsRef.current.add(item.id);
+        toQueue.push(item);
+      }
+
+      if (toQueue.length === 0) {
         return;
       }
 
-      queuedThumbIdsRef.current.add(item.id);
-      thumbQueueRef.current.push(item);
+      thumbQueueRef.current.push(...toQueue);
       setPendingThumbIds((previous) => {
         const next = new Set(previous);
-        next.add(item.id);
+        for (const item of toQueue) {
+          next.add(item.id);
+        }
         return next;
       });
       pumpThumbnailQueue();
     },
-    [pumpThumbnailQueue, thumbnailUrls]
+    [pumpThumbnailQueue]
   );
 
   const openFolder = useCallback(async () => {
@@ -196,6 +209,7 @@ export function App() {
     setSelectedId(null);
     setThumbnailUrls(new Map());
     setPendingThumbIds(new Set());
+    loadedThumbIdsRef.current = new Set();
     warmedPreloadKeysRef.current = new Set();
     thumbQueueRef.current = [];
     queuedThumbIdsRef.current = new Set();
@@ -254,9 +268,7 @@ export function App() {
             pendingThumbIds={pendingThumbIds}
             onSelect={(item) => setSelectedId(item.id)}
             onVisibleItemsChange={(items) => {
-              for (const item of items) {
-                queueThumbnail(item);
-              }
+              queueThumbnails(items);
             }}
           />
         )}
