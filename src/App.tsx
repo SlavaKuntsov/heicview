@@ -5,6 +5,7 @@ import {
   filePathToUrl,
   generateThumbnail,
   pickMediaFolder,
+  resolveDisplayImage,
   resolvePlayableVideo,
   scanFolder
 } from "./lib/api";
@@ -12,6 +13,8 @@ import { applyFilters, mergeLivePhotoItems, sortByMtimeDesc, type FilterType } f
 import type { MediaEntry } from "./lib/types";
 
 const MAX_THUMB_JOBS = 6;
+const PRELOAD_RADIUS = 3;
+const MAX_PRELOAD_JOBS = 3;
 
 export function App() {
   const [rootPath, setRootPath] = useState<string>("");
@@ -28,6 +31,7 @@ export function App() {
   const thumbQueueRef = useRef<MediaEntry[]>([]);
   const queuedThumbIdsRef = useRef<Set<string>>(new Set());
   const activeThumbJobsRef = useRef(0);
+  const warmedPreloadKeysRef = useRef<Set<string>>(new Set());
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -46,17 +50,33 @@ export function App() {
       return;
     }
 
-    const preload = async (item: MediaEntry | null | undefined) => {
-      if (!item) {
+    const preloadPhoto = async (item: MediaEntry) => {
+      if (item.kind !== "photo") {
         return;
       }
+      const key = `photo:${item.path}:${item.size}:${item.mtimeMs}`;
+      if (warmedPreloadKeysRef.current.has(key)) {
+        return;
+      }
+      try {
+        await resolveDisplayImage(item);
+        warmedPreloadKeysRef.current.add(key);
+      } catch {
+        // Ignore preload errors; interactive open will show explicit error if needed.
+      }
+    };
 
+    const preloadVideo = async (item: MediaEntry) => {
       const target =
         item.kind === "video"
           ? { path: item.path, extension: item.extension, size: item.size, mtimeMs: item.mtimeMs }
           : item.liveVideo;
 
       if (!target) {
+        return;
+      }
+      const key = `video:${target.path}:${target.size}:${target.mtimeMs}`;
+      if (warmedPreloadKeysRef.current.has(key)) {
         return;
       }
 
@@ -69,14 +89,48 @@ export function App() {
           mtimeMs: target.mtimeMs,
           kind: "video"
         });
+        warmedPreloadKeysRef.current.add(key);
       } catch {
         // Ignore preload errors; interactive open will show explicit error if needed.
       }
     };
 
-    void preload(selectedItem);
-    void preload(selectedIndex > 0 ? filteredItems[selectedIndex - 1] : null);
-    void preload(selectedIndex >= 0 ? filteredItems[selectedIndex + 1] : null);
+    const preload = async (item: MediaEntry | null | undefined) => {
+      if (!item) {
+        return;
+      }
+
+      await preloadPhoto(item);
+
+      if (selectedItem.kind === "video" && item.kind === "video") {
+        await preloadVideo(item);
+      }
+    };
+
+    const candidates: MediaEntry[] = [];
+    for (let offset = -PRELOAD_RADIUS; offset <= PRELOAD_RADIUS; offset += 1) {
+      const index = selectedIndex + offset;
+      if (index < 0 || index >= filteredItems.length) {
+        continue;
+      }
+      candidates.push(filteredItems[index]);
+    }
+
+    const run = async () => {
+      const queue = [...candidates];
+      const workers = Array.from({ length: Math.min(MAX_PRELOAD_JOBS, queue.length) }, async () => {
+        while (queue.length > 0) {
+          const next = queue.shift();
+          if (!next) {
+            continue;
+          }
+          await preload(next);
+        }
+      });
+      await Promise.all(workers);
+    };
+
+    void run();
   }, [filteredItems, selectedIndex, selectedItem]);
 
   const pumpThumbnailQueue = useCallback(() => {
@@ -142,6 +196,7 @@ export function App() {
     setSelectedId(null);
     setThumbnailUrls(new Map());
     setPendingThumbIds(new Set());
+    warmedPreloadKeysRef.current = new Set();
     thumbQueueRef.current = [];
     queuedThumbIdsRef.current = new Set();
     activeThumbJobsRef.current = 0;
