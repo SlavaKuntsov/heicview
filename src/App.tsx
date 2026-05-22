@@ -103,7 +103,7 @@ export function App() {
 
       await preloadPhoto(item);
 
-      if (selectedItem.kind === "video" && item.kind === "video") {
+      if (selectedItem.kind === "video" && item.kind === "video" && item.id === selectedItem.id) {
         await preloadVideo(item);
       }
     };

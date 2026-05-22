@@ -24,6 +24,8 @@ export function GalleryGrid({
   onVisibleItemsChange
 }: GalleryGridProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const pendingScrollTopRef = useRef(0);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(600);
   const [viewportWidth, setViewportWidth] = useState(1000);
@@ -44,6 +46,14 @@ export function GalleryGrid({
     setViewportWidth(element.clientWidth);
 
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
   }, []);
 
   const columnCount = Math.max(1, Math.floor((viewportWidth + GAP) / (CARD_WIDTH + GAP)));
@@ -75,7 +85,16 @@ export function GalleryGrid({
     <div
       ref={containerRef}
       className="gallery-grid-scroll"
-      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      onScroll={(event) => {
+        pendingScrollTopRef.current = event.currentTarget.scrollTop;
+        if (rafRef.current !== null) {
+          return;
+        }
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          setScrollTop(pendingScrollTopRef.current);
+        });
+      }}
     >
       <div className="gallery-grid-viewport" style={{ height: totalHeight }}>
         {visibleItems.map((item, localIndex) => {
@@ -104,7 +123,16 @@ export function GalleryGrid({
                 {thumbSrc ? (
                   <img src={thumbSrc} alt={item.fileName} loading="lazy" />
                 ) : (
-                  <div className="gallery-card-placeholder">{isPending ? "Loading..." : item.kind}</div>
+                  <div className="gallery-card-placeholder">
+                    {isPending ? (
+                      <>
+                        <span className="thumb-spinner" />
+                        <span>Загрузка...</span>
+                      </>
+                    ) : (
+                      <span>{item.kind === "photo" ? "Фото" : "Видео"}</span>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="gallery-card-meta">

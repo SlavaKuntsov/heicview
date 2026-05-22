@@ -144,6 +144,24 @@ select {
 .gallery-card-placeholder {
   color: #64748b;
   font-size: 12px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.thumb-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #c7d2fe;
+  border-top-color: #2563eb;
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .gallery-card-meta {
