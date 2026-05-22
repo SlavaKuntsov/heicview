@@ -12,7 +12,7 @@ import {
 import { applyFilters, mergeLivePhotoItems, sortByType, type FilterType, type SortType } from "./lib/media-utils";
 import type { MediaEntry } from "./lib/types";
 
-const MAX_THUMB_JOBS = 8;
+const MAX_THUMB_JOBS = 4;
 const PRELOAD_RADIUS = 3;
 const MAX_PRELOAD_JOBS = 3;
 

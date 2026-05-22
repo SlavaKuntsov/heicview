@@ -122,7 +122,7 @@ export function GalleryGrid({
             >
               <div className="gallery-card-thumb">
                 {thumbSrc ? (
-                  <img src={thumbSrc} alt={item.fileName} loading="lazy" />
+                  <img src={thumbSrc} alt={item.fileName} loading="lazy" decoding="async" />
                 ) : (
                   <div className="gallery-card-placeholder">
                     <span className="thumb-spinner" />

@@ -19,6 +19,9 @@ use crate::{
   errors::{AppError, AppResult},
 };
 
+const THUMB_MAX_EDGE: u32 = 320;
+const THUMB_JPEG_QUALITY: u8 = 72;
+
 #[derive(Clone)]
 pub struct ThumbnailService {
   sender: Sender<WorkItem>,
@@ -142,7 +145,7 @@ fn build_thumbnail(request: ThumbRequest, cache_dirs: &CacheDirectories) -> AppR
     return Err(AppError::MissingFolder(source));
   }
 
-  let key = cache_key(&source, request.size, request.mtime_ms, "thumb");
+  let key = cache_key(&source, request.size, request.mtime_ms, "thumb-v2");
   let output = cache_dirs.thumbs_dir.join(format!("{key}.jpg"));
   let fingerprint = CacheFingerprint::from_source(&source, request.size, request.mtime_ms);
 
@@ -272,12 +275,14 @@ fn native_photo_thumbnail(source: &Path, output: &Path) -> AppResult<()> {
     .decode()
     .map_err(|err| AppError::ExternalCommand(format!("failed to decode image: {err}")))?;
 
-  let thumbnail = image.resize(400, 400, FilterType::Triangle).to_rgb8();
+  let thumbnail = image
+    .resize(THUMB_MAX_EDGE, THUMB_MAX_EDGE, FilterType::Triangle)
+    .to_rgb8();
 
   let file = fs::File::create(output)
     .map_err(|err| AppError::ExternalCommand(format!("failed to create thumbnail file: {err}")))?;
   let writer = BufWriter::new(file);
-  let mut encoder = JpegEncoder::new_with_quality(writer, 82);
+  let mut encoder = JpegEncoder::new_with_quality(writer, THUMB_JPEG_QUALITY);
   encoder
     .encode_image(&thumbnail)
     .map_err(|err| AppError::ExternalCommand(format!("failed to encode jpeg thumbnail: {err}")))?;
@@ -301,8 +306,10 @@ fn generate_video_thumbnail(source: &Path, output: &Path) -> AppResult<()> {
       "1",
       "-frames:v",
       "1",
+      "-q:v",
+      "8",
       "-vf",
-      "scale=400:-2:force_original_aspect_ratio=decrease",
+      "scale=320:-2:force_original_aspect_ratio=decrease",
       &output.to_string_lossy(),
     ],
   )
@@ -322,8 +329,10 @@ fn ffmpeg_photo_thumbnail(source: &Path, output: &Path) -> AppResult<()> {
       "1",
       "-frames:v",
       "1",
+      "-q:v",
+      "8",
       "-vf",
-      "scale=400:-2:force_original_aspect_ratio=decrease",
+      "scale=320:-2:force_original_aspect_ratio=decrease",
       &output.to_string_lossy(),
     ],
   )
