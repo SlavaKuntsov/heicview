@@ -26,11 +26,12 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
 
   const [thumbnailUrls, setThumbnailUrls] = useState<Map<string, string>>(new Map());
-  const [pendingThumbIds, setPendingThumbIds] = useState<Set<string>>(new Set());
 
   const thumbQueueRef = useRef<MediaEntry[]>([]);
   const queuedThumbIdsRef = useRef<Set<string>>(new Set());
   const loadedThumbIdsRef = useRef<Set<string>>(new Set());
+  const pendingThumbUrlUpdatesRef = useRef<Map<string, string>>(new Map());
+  const thumbnailFlushTimerRef = useRef<number | null>(null);
   const activeThumbJobsRef = useRef(0);
   const warmedPreloadKeysRef = useRef<Set<string>>(new Set());
 
@@ -134,6 +135,38 @@ export function App() {
     void run();
   }, [filteredItems, selectedIndex, selectedItem]);
 
+  useEffect(() => {
+    return () => {
+      if (thumbnailFlushTimerRef.current !== null) {
+        clearTimeout(thumbnailFlushTimerRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleThumbnailUrlsFlush = useCallback(() => {
+    if (thumbnailFlushTimerRef.current !== null) {
+      return;
+    }
+
+    thumbnailFlushTimerRef.current = window.setTimeout(() => {
+      thumbnailFlushTimerRef.current = null;
+
+      const updates = pendingThumbUrlUpdatesRef.current;
+      if (updates.size === 0) {
+        return;
+      }
+
+      pendingThumbUrlUpdatesRef.current = new Map();
+      setThumbnailUrls((previous) => {
+        const next = new Map(previous);
+        for (const [id, url] of updates.entries()) {
+          next.set(id, url);
+        }
+        return next;
+      });
+    }, 40);
+  }, []);
+
   const pumpThumbnailQueue = useCallback(() => {
     while (activeThumbJobsRef.current < MAX_THUMB_JOBS && thumbQueueRef.current.length > 0) {
       const item = thumbQueueRef.current.shift();
@@ -146,11 +179,8 @@ export function App() {
       void generateThumbnail(item)
         .then((response) => {
           loadedThumbIdsRef.current.add(item.id);
-          setThumbnailUrls((previous) => {
-            const next = new Map(previous);
-            next.set(item.id, filePathToUrl(response.cachePath));
-            return next;
-          });
+          pendingThumbUrlUpdatesRef.current.set(item.id, filePathToUrl(response.cachePath));
+          scheduleThumbnailUrlsFlush();
         })
         .catch((err) => {
           setError(err instanceof Error ? err.message : String(err));
@@ -158,15 +188,10 @@ export function App() {
         .finally(() => {
           activeThumbJobsRef.current = Math.max(0, activeThumbJobsRef.current - 1);
           queuedThumbIdsRef.current.delete(item.id);
-          setPendingThumbIds((previous) => {
-            const next = new Set(previous);
-            next.delete(item.id);
-            return next;
-          });
           pumpThumbnailQueue();
         });
     }
-  }, []);
+  }, [scheduleThumbnailUrlsFlush]);
 
   const queueThumbnails = useCallback(
     (items: MediaEntry[]) => {
@@ -185,13 +210,6 @@ export function App() {
       }
 
       thumbQueueRef.current.push(...toQueue);
-      setPendingThumbIds((previous) => {
-        const next = new Set(previous);
-        for (const item of toQueue) {
-          next.add(item.id);
-        }
-        return next;
-      });
       pumpThumbnailQueue();
     },
     [pumpThumbnailQueue]
@@ -208,8 +226,8 @@ export function App() {
     setLoadingLibrary(true);
     setSelectedId(null);
     setThumbnailUrls(new Map());
-    setPendingThumbIds(new Set());
     loadedThumbIdsRef.current = new Set();
+    pendingThumbUrlUpdatesRef.current = new Map();
     warmedPreloadKeysRef.current = new Set();
     thumbQueueRef.current = [];
     queuedThumbIdsRef.current = new Set();
@@ -265,7 +283,6 @@ export function App() {
             items={filteredItems}
             selectedId={selectedId}
             thumbnailUrls={thumbnailUrls}
-            pendingThumbIds={pendingThumbIds}
             onSelect={(item) => setSelectedId(item.id)}
             onVisibleItemsChange={(items) => {
               queueThumbnails(items);

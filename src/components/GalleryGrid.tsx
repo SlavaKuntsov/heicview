@@ -5,7 +5,6 @@ interface GalleryGridProps {
   items: MediaEntry[];
   selectedId: string | null;
   thumbnailUrls: Map<string, string>;
-  pendingThumbIds: Set<string>;
   onSelect: (item: MediaEntry) => void;
   onVisibleItemsChange: (items: MediaEntry[]) => void;
 }
@@ -19,7 +18,6 @@ export function GalleryGrid({
   items,
   selectedId,
   thumbnailUrls,
-  pendingThumbIds,
   onSelect,
   onVisibleItemsChange
 }: GalleryGridProps) {
@@ -104,7 +102,6 @@ export function GalleryGrid({
           const top = row * (CARD_HEIGHT + GAP);
           const left = column * (CARD_WIDTH + GAP);
           const thumbSrc = thumbnailUrls.get(item.id);
-          const isPending = pendingThumbIds.has(item.id);
 
           return (
             <button
@@ -124,14 +121,8 @@ export function GalleryGrid({
                   <img src={thumbSrc} alt={item.fileName} loading="lazy" />
                 ) : (
                   <div className="gallery-card-placeholder">
-                    {isPending ? (
-                      <>
-                        <span className="thumb-spinner" />
-                        <span>Загрузка...</span>
-                      </>
-                    ) : (
-                      <span>{item.kind === "photo" ? "Фото" : "Видео"}</span>
-                    )}
+                    <span className="thumb-spinner" />
+                    <span>Загрузка...</span>
                   </div>
                 )}
               </div>
