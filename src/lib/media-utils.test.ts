@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { applyFilters, mergeLivePhotoItems, sortByMtimeDesc } from "./media-utils";
+import {
+  applyFilters,
+  mergeLivePhotoItems,
+  relativeDirectoryPath,
+  sortByName,
+  sortByPath,
+  sortByType
+} from "./media-utils";
 import type { MediaEntry } from "./types";
 
 const fixtures: MediaEntry[] = [
   {
     id: "1",
-    path: "/photos/IMG_0001.HEIC",
-    fileName: "IMG_0001.HEIC",
+    path: "/photos/IMG_2.HEIC",
+    fileName: "IMG_2.HEIC",
     extension: "heic",
     kind: "photo",
     size: 10,
@@ -14,8 +21,8 @@ const fixtures: MediaEntry[] = [
   },
   {
     id: "2",
-    path: "/photos/IMG_0002.MOV",
-    fileName: "IMG_0002.MOV",
+    path: "/photos/IMG_10.MOV",
+    fileName: "IMG_10.MOV",
     extension: "mov",
     kind: "video",
     size: 10,
@@ -74,9 +81,61 @@ describe("applyFilters", () => {
   });
 });
 
-describe("sortByMtimeDesc", () => {
-  it("sorts by modification time descending and name as tie-breaker", () => {
-    const result = sortByMtimeDesc(fixtures);
-    expect(result.map((item) => item.id)).toEqual(["3", "2", "1"]);
+describe("sortByName", () => {
+  it("sorts by filename with natural order", () => {
+    const result = sortByName(fixtures);
+    expect(result.map((item) => item.id)).toEqual(["3", "1", "2"]);
+  });
+});
+
+describe("sortByPath", () => {
+  it("sorts by path with natural order", () => {
+    const data: MediaEntry[] = [
+      {
+        id: "a",
+        path: "/root/апрель/12/IMG_1.HEIC",
+        fileName: "IMG_1.HEIC",
+        extension: "heic",
+        kind: "photo",
+        size: 1,
+        mtimeMs: 1
+      },
+      {
+        id: "b",
+        path: "/root/апрель/2/IMG_2.HEIC",
+        fileName: "IMG_2.HEIC",
+        extension: "heic",
+        kind: "photo",
+        size: 1,
+        mtimeMs: 2
+      },
+      {
+        id: "c",
+        path: "/root/май/1/IMG_3.HEIC",
+        fileName: "IMG_3.HEIC",
+        extension: "heic",
+        kind: "photo",
+        size: 1,
+        mtimeMs: 3
+      }
+    ];
+
+    const result = sortByPath(data);
+    expect(result.map((item) => item.id)).toEqual(["b", "a", "c"]);
+  });
+
+  it("is selected by sortByType", () => {
+    const result = sortByType(fixtures, "path");
+    expect(result.map((item) => item.id)).toEqual(["3", "1", "2"]);
+  });
+});
+
+describe("relativeDirectoryPath", () => {
+  it("returns directory relative to root", () => {
+    expect(relativeDirectoryPath("/root/апрель/12/IMG_0001.HEIC", "/root")).toBe("апрель/12");
+  });
+
+  it("returns dot for files in root", () => {
+    expect(relativeDirectoryPath("/root/IMG_0001.HEIC", "/root")).toBe(".");
   });
 });

@@ -129,7 +129,7 @@ select {
   display: grid;
   place-items: center;
   width: 100%;
-  height: 120px;
+  height: 112px;
   border-radius: 8px;
   background: #eef2ff;
   overflow: hidden;
@@ -166,12 +166,23 @@ select {
 
 .gallery-card-meta {
   margin-top: 8px;
-  font-size: 12px;
   color: #334155;
 }
 
-.gallery-card-meta span {
+.gallery-card-name {
   display: block;
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-card-path {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #64748b;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

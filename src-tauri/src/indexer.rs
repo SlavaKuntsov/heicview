@@ -15,14 +15,6 @@ use crate::{
 const PHOTO_EXTENSIONS: [&str; 5] = ["jpg", "jpeg", "png", "heic", "heif"];
 const VIDEO_EXTENSIONS: [&str; 2] = ["mp4", "mov"];
 
-pub fn supported_extensions() -> Vec<&'static str> {
-  PHOTO_EXTENSIONS
-    .iter()
-    .chain(VIDEO_EXTENSIONS.iter())
-    .copied()
-    .collect()
-}
-
 pub fn media_kind_for_extension(extension: &str) -> Option<MediaKind> {
   let ext = extension.to_ascii_lowercase();
 
@@ -37,6 +29,7 @@ pub fn media_kind_for_extension(extension: &str) -> Option<MediaKind> {
   None
 }
 
+#[cfg(test)]
 pub fn is_supported_path(path: &Path) -> bool {
   path
     .extension()

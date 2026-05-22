@@ -1,6 +1,7 @@
 import type { MediaEntry, MediaKind } from "./types";
 
 export type FilterType = "all" | MediaKind;
+export type SortType = "name" | "path";
 
 export interface FilterState {
   query: string;
@@ -8,6 +9,10 @@ export interface FilterState {
 }
 
 const LIVE_PHOTO_EXTENSIONS = new Set(["heic", "heif"]);
+const SORT_COLLATOR = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: "base"
+});
 
 export function mergeLivePhotoItems(items: MediaEntry[]): MediaEntry[] {
   const byPairKey = new Map<string, MediaEntry>();
@@ -69,19 +74,62 @@ export function applyFilters(items: MediaEntry[], filter: FilterState): MediaEnt
   });
 }
 
-export function sortByMtimeDesc(items: MediaEntry[]): MediaEntry[] {
+export function sortByType(items: MediaEntry[], sortType: SortType): MediaEntry[] {
+  if (sortType === "path") {
+    return sortByPath(items);
+  }
+
+  return sortByName(items);
+}
+
+export function sortByName(items: MediaEntry[]): MediaEntry[] {
   return [...items].sort((a, b) => {
-    if (b.mtimeMs !== a.mtimeMs) {
-      return b.mtimeMs - a.mtimeMs;
+    const byName = SORT_COLLATOR.compare(a.fileName, b.fileName);
+    if (byName !== 0) {
+      return byName;
     }
 
-    return a.fileName.localeCompare(b.fileName);
+    return SORT_COLLATOR.compare(normalizePath(a.path), normalizePath(b.path));
   });
 }
 
+export function sortByPath(items: MediaEntry[]): MediaEntry[] {
+  return [...items].sort((a, b) => {
+    const byPath = SORT_COLLATOR.compare(normalizePath(a.path), normalizePath(b.path));
+    if (byPath !== 0) {
+      return byPath;
+    }
+
+    return SORT_COLLATOR.compare(a.fileName, b.fileName);
+  });
+}
+
+export function relativeDirectoryPath(itemPath: string, rootPath: string): string {
+  const normalizedItemPath = normalizePath(itemPath);
+  const normalizedRootPath = trimTrailingSlash(normalizePath(rootPath));
+  const fileSeparatorIndex = normalizedItemPath.lastIndexOf("/");
+  const directory = fileSeparatorIndex >= 0 ? normalizedItemPath.slice(0, fileSeparatorIndex) : "";
+
+  if (!normalizedRootPath) {
+    return directory;
+  }
+
+  if (directory === normalizedRootPath) {
+    return ".";
+  }
+
+  const prefix = `${normalizedRootPath}/`;
+  if (directory.startsWith(prefix)) {
+    return directory.slice(prefix.length);
+  }
+
+  return directory;
+}
+
 function createPairKey(path: string, fileName: string): string | null {
-  const slashIndex = path.lastIndexOf("/");
-  const directory = slashIndex >= 0 ? path.slice(0, slashIndex) : "";
+  const normalizedPath = normalizePath(path);
+  const slashIndex = normalizedPath.lastIndexOf("/");
+  const directory = slashIndex >= 0 ? normalizedPath.slice(0, slashIndex) : "";
   const dotIndex = fileName.lastIndexOf(".");
   if (dotIndex <= 0) {
     return null;
@@ -89,4 +137,16 @@ function createPairKey(path: string, fileName: string): string | null {
 
   const stem = fileName.slice(0, dotIndex).toLowerCase();
   return `${directory}::${stem}`;
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, "/");
+}
+
+function trimTrailingSlash(path: string): string {
+  if (path.endsWith("/")) {
+    return path.slice(0, -1);
+  }
+
+  return path;
 }

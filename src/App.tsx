@@ -9,7 +9,7 @@ import {
   resolvePlayableVideo,
   scanFolder
 } from "./lib/api";
-import { applyFilters, mergeLivePhotoItems, sortByMtimeDesc, type FilterType } from "./lib/media-utils";
+import { applyFilters, mergeLivePhotoItems, sortByType, type FilterType, type SortType } from "./lib/media-utils";
 import type { MediaEntry } from "./lib/types";
 
 const MAX_THUMB_JOBS = 8;
@@ -21,6 +21,7 @@ export function App() {
   const [allItems, setAllItems] = useState<MediaEntry[]>([]);
   const [filterQuery, setFilterQuery] = useState("");
   const [filterType, setFilterType] = useState<FilterType>("all");
+  const [sortType, setSortType] = useState<SortType>("path");
 
   const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const mergedItems = useMemo(() => mergeLivePhotoItems(allItems), [allItems]);
-  const sortedItems = useMemo(() => sortByMtimeDesc(mergedItems), [mergedItems]);
+  const sortedItems = useMemo(() => sortByType(mergedItems, sortType), [mergedItems, sortType]);
   const filteredItems = useMemo(
     () => applyFilters(sortedItems, { query: filterQuery, type: filterType }),
     [filterQuery, filterType, sortedItems]
@@ -268,6 +269,13 @@ export function App() {
             <option value="photo">Фото</option>
             <option value="video">Видео</option>
           </select>
+          <select
+            value={sortType}
+            onChange={(event) => setSortType(event.currentTarget.value as SortType)}
+          >
+            <option value="name">Сортировка: по имени</option>
+            <option value="path">Сортировка: по пути</option>
+          </select>
         </div>
       </header>
 
@@ -281,6 +289,7 @@ export function App() {
         ) : (
           <GalleryGrid
             items={filteredItems}
+            rootPath={rootPath}
             selectedId={selectedId}
             thumbnailUrls={thumbnailUrls}
             onSelect={(item) => setSelectedId(item.id)}

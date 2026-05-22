@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { relativeDirectoryPath } from "../lib/media-utils";
 import type { MediaEntry } from "../lib/types";
 
 interface GalleryGridProps {
   items: MediaEntry[];
+  rootPath: string;
   selectedId: string | null;
   thumbnailUrls: Map<string, string>;
   onSelect: (item: MediaEntry) => void;
@@ -10,12 +12,13 @@ interface GalleryGridProps {
 }
 
 const CARD_WIDTH = 180;
-const CARD_HEIGHT = 170;
+const CARD_HEIGHT = 186;
 const GAP = 12;
 const OVERSCAN_ROWS = 3;
 
 export function GalleryGrid({
   items,
+  rootPath,
   selectedId,
   thumbnailUrls,
   onSelect,
@@ -102,6 +105,7 @@ export function GalleryGrid({
           const top = row * (CARD_HEIGHT + GAP);
           const left = column * (CARD_WIDTH + GAP);
           const thumbSrc = thumbnailUrls.get(item.id);
+          const relativePath = relativeDirectoryPath(item.path, rootPath);
 
           return (
             <button
@@ -127,7 +131,8 @@ export function GalleryGrid({
                 )}
               </div>
               <div className="gallery-card-meta">
-                <span>{item.fileName}</span>
+                <span className="gallery-card-name">{item.fileName}</span>
+                <span className="gallery-card-path">{relativePath}</span>
               </div>
             </button>
           );
