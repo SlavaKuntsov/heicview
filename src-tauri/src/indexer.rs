@@ -55,6 +55,10 @@ pub fn scan_media(root: &Path) -> AppResult<Vec<MediaEntry>> {
     }
 
     let path = entry.path();
+    if should_skip_file(path) {
+      continue;
+    }
+
     let Some(extension) = path.extension().and_then(|ext| ext.to_str()) else {
       continue;
     };
@@ -93,6 +97,14 @@ pub fn scan_media(root: &Path) -> AppResult<Vec<MediaEntry>> {
 
   items.sort_by(|a, b| a.path.cmp(&b.path));
   Ok(items)
+}
+
+fn should_skip_file(path: &Path) -> bool {
+  let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+    return false;
+  };
+
+  name.starts_with("._")
 }
 
 fn probe_dimensions(path: &Path, kind: &MediaKind, extension: &str) -> (Option<u32>, Option<u32>) {
@@ -141,5 +153,11 @@ mod tests {
   fn supported_path_works() {
     assert!(is_supported_path(Path::new("/tmp/img.HEIF")));
     assert!(!is_supported_path(Path::new("/tmp/note.md")));
+  }
+
+  #[test]
+  fn skips_appledouble_sidecar_files() {
+    assert!(should_skip_file(Path::new("/tmp/._IMG_2020.HEIC")));
+    assert!(!should_skip_file(Path::new("/tmp/IMG_2020.HEIC")));
   }
 }
